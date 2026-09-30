@@ -1,4 +1,5 @@
 const AWSKinesis = require('aws-sdk/clients/kinesis')
+const placeholderCredentials = require('./internal/placeholderCredentials')
 
 /**
  * @name Kinesis
@@ -6,15 +7,18 @@ const AWSKinesis = require('aws-sdk/clients/kinesis')
  * @synopsis
  * ```coffeescript [specscript]
  * Kinesis(options {
- *   accessKeyId: string,
- *   secretAccessKey: string,
+ *   accessKeyId?: string,
+ *   secretAccessKey?: string,
+ *   sessionToken?: string,
  *   region: string,
- *   endpoint: string,
+ *   endpoint?: string,
  * }) -> Kinesis
  * ```
  *
  * @description
  * Kinesis base. https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Kinesis.html
+ *
+ * Without a key or an endpoint, the AWS SDK resolves credentials itself. See internal/placeholderCredentials.
  */
 const Kinesis = function (options) {
   if (this == null || this.constructor != Kinesis) {
@@ -22,9 +26,7 @@ const Kinesis = function (options) {
   }
   this.client = new AWSKinesis({
     apiVersion: '2013-12-02',
-    accessKeyId: 'id',
-    secretAccessKey: 'secret',
-    region: 'x-x-x',
+    ...placeholderCredentials(options),
     ...options,
   })
   return this

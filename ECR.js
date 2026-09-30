@@ -24,6 +24,7 @@ const ECR = function (options) {
     ...pick([
       'accessKeyId',
       'secretAccessKey',
+      'sessionToken',
       'region',
       'endpoint',
     ])(options),

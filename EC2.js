@@ -29,6 +29,7 @@ const EC2 = function (options) {
     ...pick([
       'accessKeyId',
       'secretAccessKey',
+      'sessionToken',
       'region',
       'endpoint',
     ])(options),

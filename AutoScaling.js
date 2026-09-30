@@ -28,6 +28,7 @@ const AutoScaling = function (options) {
     ...pick([
       'accessKeyId',
       'secretAccessKey',
+      'sessionToken',
       'region',
       'endpoint',
     ])(options),

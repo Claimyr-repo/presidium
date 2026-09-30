@@ -4,6 +4,7 @@ const test = Test.all([
   require('./Archive.test'),
   require('./AutoScaling.test'),
   require('./AwsCredentials.test'),
+  require('./ClaimyrCredentials.test'),
   require('./Dependency.test'),
   require('./Docker.test'),
   require('./DockerContainer.test'),

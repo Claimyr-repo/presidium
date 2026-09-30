@@ -4,6 +4,7 @@ const defaultsDeep = require('rubico/x/defaultsDeep')
 const AWSDynamo = require('aws-sdk/clients/dynamodb')
 const getFirstKey = require('./internal/getFirstKey')
 const getFirstValue = require('./internal/getFirstValue')
+const placeholderCredentials = require('./internal/placeholderCredentials')
 const HttpAgent = require('./HttpAgent')
 
 const isArray = Array.isArray
@@ -23,10 +24,11 @@ const throwTypeError = function throwTypeError(message) {
  * @synopsis
  * ```coffeescript [specscript]
  * Dynamo(options {
- *   accessKeyId: string,
- *   secretAccessKey: string,
+ *   accessKeyId?: string,
+ *   secretAccessKey?: string,
+ *   sessionToken?: string,
  *   region: string,
- *   endpoint: string,
+ *   endpoint?: string,
  * }) -> DynamoTable
  *
  * Dynamo(endpoint string) -> DynamoTable
@@ -34,6 +36,9 @@ const throwTypeError = function throwTypeError(message) {
  *
  * @description
  * https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB.html#constructor-property
+ *
+ * Without a key or an endpoint, the AWS SDK resolves credentials itself (environment, shared file, container or
+ * EC2 instance role). See internal/placeholderCredentials.
  */
 const Dynamo = function (options) {
   if (this == null || this.constructor != Dynamo) {
@@ -41,9 +46,7 @@ const Dynamo = function (options) {
   }
   this.connection = new AWSDynamo({
     apiVersion: '2012-08-10',
-    accessKeyId: 'id',
-    secretAccessKey: 'secret',
-    region: 'x-x-x',
+    ...placeholderCredentials(options),
     ...options,
   })
   return this

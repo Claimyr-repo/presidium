@@ -24,6 +24,7 @@ const S3Bucket = function (options) {
   this.s3 = new S3(pick([
     'accessKeyId',
     'secretAccessKey',
+    'sessionToken',
     'region',
     'endpoint',
     'signatureVersion',

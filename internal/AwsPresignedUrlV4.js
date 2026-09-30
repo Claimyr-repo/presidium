@@ -13,6 +13,7 @@ const sha256 = require('./sha256')
  * AwsPresignedUrlV4(options {
  *   accessKeyId: string,
  *   secretAccessKey: string,
+ *   sessionToken?: string, // temporary credentials (a role) come with one; it is signed like the other params
  *   region: string,
  *   method: string, // GET
  *   endpoint: string, // transcribestreaming.${region}.amazonaws.com:8443
@@ -30,6 +31,7 @@ const AwsPresignedUrlV4 = function (options) {
   const {
     accessKeyId,
     secretAccessKey,
+    sessionToken,
     region,
     method,
     endpoint,
@@ -67,6 +69,10 @@ const AwsPresignedUrlV4 = function (options) {
   canonicalQueryString += `&X-Amz-Credential=${credential}`
   canonicalQueryString += `&X-Amz-Date=${amzDate}`
   canonicalQueryString += `&X-Amz-Expires=${expires}`
+  // parameters are in byte order: X-Amz-Security-Token sorts between X-Amz-Expires and X-Amz-SignedHeaders
+  if (sessionToken != null) {
+    canonicalQueryString += `&X-Amz-Security-Token=${encodeURIComponent(sessionToken)}`
+  }
   canonicalQueryString += `&X-Amz-SignedHeaders=${AmzSignedHeaders(headers)}`
 
   for (const key in queryParams) {

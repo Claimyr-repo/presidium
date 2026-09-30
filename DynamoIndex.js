@@ -44,6 +44,7 @@ const DynamoIndex = function (options) {
   this.dynamo = new Dynamo(pick([
     'accessKeyId',
     'secretAccessKey',
+    'sessionToken',
     'region',
     'endpoint',
   ])(options))

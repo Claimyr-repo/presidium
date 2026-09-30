@@ -3,6 +3,7 @@ const EventEmitter = require('events')
 const WebSocket = require('./WebSocket')
 const sha256 = require('./internal/sha256')
 const AwsPresignedUrlV4 = require('./internal/AwsPresignedUrlV4')
+const resolveAwsCredentials = require('./internal/resolveAwsCredentials')
 const Crc32 = require('./internal/Crc32')
 
 // All prelude components are unsigned, 32-bit integers
@@ -23,8 +24,9 @@ const MINIMUM_MESSAGE_LENGTH = PRELUDE_LENGTH + CHECKSUM_LENGTH * 2
  * @synopsis
  * ```coffeescript [specscript]
  * const myTranscribeStream = new TranscribeStream(options {
- *   accessKeyId: string,
- *   secretAccessKey: string,
+ *   accessKeyId?: string,
+ *   secretAccessKey?: string,
+ *   sessionToken?: string,
  *   region: string,
  *   endpoint: string,
  *   languageCode: string,
@@ -65,6 +67,11 @@ const MINIMUM_MESSAGE_LENGTH = PRELUDE_LENGTH + CHECKSUM_LENGTH * 2
  * `sessionId` - id for the transcription session. If you don't provide a session ID, Amazon Transcribe generates one for you and returns it in the response.
  *
  * `vocabularyName` - The name of the vocabulary to use when processing the transcription job, if any.
+ *
+ * Credentials: pass `accessKeyId` and `secretAccessKey` (and `sessionToken` for temporary credentials) to connect
+ * at once, as before. Without `accessKeyId`, the stream first resolves credentials from the AWS SDK's default
+ * chain (environment, shared file, container or EC2 instance role) and connects after that; `ready` resolves
+ * once the socket is open either way.
  */
 
 class TranscribeStream extends EventEmitter {
@@ -73,6 +80,7 @@ class TranscribeStream extends EventEmitter {
     const {
       accessKeyId,
       secretAccessKey,
+      sessionToken,
       region,
       languageCode,
       mediaEncoding,
@@ -81,45 +89,74 @@ class TranscribeStream extends EventEmitter {
       vocabularyName,
     } = options
 
-    const url = AwsPresignedUrlV4({
-      accessKeyId,
-      secretAccessKey,
-      region,
-      method: 'GET',
-      endpoint: `transcribestreaming.${region}.amazonaws.com:8443`,
-      protocol: 'wss',
-      canonicalUri: '/stream-transcription-websocket',
-      serviceName: 'transcribe',
-      payloadHash: sha256(''),
-      expires: 300,
-      queryParams: {
-        'language-code': languageCode,
-        'media-encoding': mediaEncoding,
-        'sample-rate': sampleRate,
-        ...sessionId == null ? {} : { 'session-id': sessionId },
-        ...vocabularyName == null ? {} : { 'vocabulary-name': vocabularyName },
-      },
-    })
+    const connect = credentials => {
+      const url = AwsPresignedUrlV4({
+        ...credentials,
+        region,
+        method: 'GET',
+        endpoint: `transcribestreaming.${region}.amazonaws.com:8443`,
+        protocol: 'wss',
+        canonicalUri: '/stream-transcription-websocket',
+        serviceName: 'transcribe',
+        payloadHash: sha256(''),
+        expires: 300,
+        queryParams: {
+          'language-code': languageCode,
+          'media-encoding': mediaEncoding,
+          'sample-rate': sampleRate,
+          ...sessionId == null ? {} : { 'session-id': sessionId },
+          ...vocabularyName == null ? {} : { 'vocabulary-name': vocabularyName },
+        },
+      })
 
-    this.websocket = new WebSocket(url)
-    this.ready = new Promise(resolve => {
-      this.websocket.on('open', resolve)
-    })
-    this.websocket.on('message', chunk => {
-      const { headers, body } = unmarshalMessage(chunk)
-      if (headers[':message-type'] == 'exception') {
-        const error = new Error(body.Message)
-        error.name = headers[':exception-type']
-        this.emit('error', error)
-      }
-      else if (body.Transcript.Results.length > 0) {
-        if (body.Transcript.Results[0].IsPartial) {
-          this.emit('partialTranscription', body.Transcript.Results[0])
-        } else {
-          this.emit('transcription', body.Transcript.Results[0])
+      this.websocket = new WebSocket(url)
+      const opened = new Promise(resolve => {
+        this.websocket.on('open', resolve)
+      })
+      this.websocket.on('message', chunk => this.handleMessage(chunk))
+      return opened
+    }
+
+    if (accessKeyId == null) {
+      this.websocket = null
+      this.closed = false
+      this.ready = resolveAwsCredentials().then(credentials => {
+        if (this.closed) {
+          return undefined
         }
+        return connect(credentials)
+      })
+    } else {
+      this.ready = connect({
+        accessKeyId,
+        secretAccessKey,
+        ...sessionToken == null ? {} : { sessionToken },
+      })
+    }
+  }
+
+  /**
+   * @name TranscribeStream.prototype.handleMessage
+   *
+   * @synopsis
+   * ```coffeescript [specscript]
+   * myTranscribeStream.handleMessage(chunk Buffer) -> undefined
+   * ```
+   */
+  handleMessage(chunk) {
+    const { headers, body } = unmarshalMessage(chunk)
+    if (headers[':message-type'] == 'exception') {
+      const error = new Error(body.Message)
+      error.name = headers[':exception-type']
+      this.emit('error', error)
+    }
+    else if (body.Transcript.Results.length > 0) {
+      if (body.Transcript.Results[0].IsPartial) {
+        this.emit('partialTranscription', body.Transcript.Results[0])
+      } else {
+        this.emit('transcription', body.Transcript.Results[0])
       }
-    })
+    }
   }
 
   /**
@@ -167,11 +204,18 @@ class TranscribeStream extends EventEmitter {
       checksum.update(bytes.subarray(8, length - 4)).digest(),
       false
     )
+    if (this.websocket == null) {
+      throw new Error('TranscribeStream is not connected yet: await myTranscribeStream.ready before sending audio')
+    }
     this.websocket.send(bytes)
   }
 
   close() {
-    this.websocket.close()
+    if (this.websocket == null) {
+      this.closed = true // still resolving credentials: do not connect afterwards
+    } else {
+      this.websocket.close()
+    }
     this.emit('close')
   }
 

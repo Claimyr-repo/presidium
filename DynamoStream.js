@@ -6,6 +6,7 @@ const has = require('./internal/has')
 const RetryAwsErrors = require('./internal/RetryAwsErrors')
 const HttpAgent = require('./HttpAgent')
 const Dynamo = require('./Dynamo')
+const placeholderCredentials = require('./internal/placeholderCredentials')
 const Mux = require('rubico/monad/Mux')
 
 const { identity, differenceWith } = rubicox
@@ -41,6 +42,7 @@ const DynamoStream = function (options) {
   const awsCreds = pick(options, [
     'accessKeyId',
     'secretAccessKey',
+    'sessionToken',
     'region',
     'endpoint',
   ])
@@ -52,9 +54,7 @@ const DynamoStream = function (options) {
   this.listStreamsLimit = options.listStreamsLimit ?? 100
   this.client = new DynamoDBStreams({
     apiVersion: '2012-08-10',
-    accessKeyId: 'id',
-    secretAccessKey: 'secret',
-    region: 'x-x-x',
+    ...placeholderCredentials(awsCreds),
     ...awsCreds,
   })
 

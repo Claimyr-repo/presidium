@@ -29,6 +29,9 @@ const AwsCredentials = async function (options = {}) {
       accessKeyId: process.env.AWS_ACCESS_KEY_ID,
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
     }
+    if (process.env.AWS_SESSION_TOKEN) {
+      awsCreds.sessionToken = process.env.AWS_SESSION_TOKEN
+    }
     if (process.env.AWS_REGION) {
       awsCreds.region = process.env.AWS_REGION
     }
