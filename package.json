@@ -1,0 +1,55 @@
+{
+  "name": "presidium",
+  "version": "0.29.13",
+  "description": "A library for creating web services",
+  "author": "Richard Tong",
+  "license": "MIT",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "github:richytong/presidium"
+  },
+  "homepage": "https://github.com/richytong/presidium",
+  "keywords": [
+    "web",
+    "service",
+    "microservice",
+    "aws",
+    "aws-sdk",
+    "toolkit",
+    "framework",
+    "http",
+    "request",
+    "websocket",
+    "dynamo",
+    "dynamodb",
+    "docker",
+    "kinesis",
+    "lambda",
+    "types"
+  ],
+  "dependencies": {
+    "@elastic/elasticsearch": "^7.10.0",
+    "aws-sdk": "^2.1123.0",
+    "bcrypt": "^5.1.0",
+    "ioredis": "^4.19.0",
+    "minimatch": "^9.0.3",
+    "mongodb": "^3.6.3",
+    "node-fetch": "^2.6.1",
+    "rubico": "latest",
+    "tar-stream": "^2.1.4",
+    "thunk-test": "latest",
+    "ws": "^8.18.1"
+  },
+  "scripts": {
+    "test": "node test.js",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "eslint": "^7.13.0",
+    "glob": "^7.1.6",
+    "mocha": "^10.8.2",
+    "nyc": "^17.1.0",
+    "wavefile": "^11.0.0"
+  }
+}
