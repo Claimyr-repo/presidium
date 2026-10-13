@@ -1,7 +1,7 @@
 {
   "name": "@claimyr_hq/presidium",
-  "version": "0.29.14",
-  "description": "Claimyr's copy of presidium 0.29.13 (A library for creating web services), with session-token and default-credential-chain support for AWS clients",
+  "version": "0.29.15",
+  "description": "Claimyr's copy of presidium 0.29.13 (A library for creating web services), with session-token and default-credential-chain support for AWS clients, and DynamoStream shard readers that replace a shard iterator DynamoDB Streams refuses",
   "author": "Richard Tong",
   "license": "MIT",
   "main": "index.js",

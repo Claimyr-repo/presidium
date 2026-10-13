@@ -136,6 +136,7 @@ DynamoStream.prototype.getShards = async function* getShards(
 }
 
 // handleGetRecordsError(error Error) -> ()
+// Kept for callers; getRecords no longer uses it (it returned [] for an expired iterator, which ended the shard's reads)
 const handleGetRecordsError = error => {
   if (error.message.includes('Shard iterator has expired')) {
     console.error(error)
@@ -145,50 +146,88 @@ const handleGetRecordsError = error => {
 }
 DynamoStream.handleGetRecordsError = handleGetRecordsError
 
+// DynamoDB Streams refuses a shard iterator whose records were trimmed (past the 24-hour retention, or trimmed between
+// GetShardIterator and GetRecords) or that expired (unused for 15 minutes)
+const isTrimmedError = error => error.code == 'TrimmedDataAccessException'
+const isExpiredError = error => error.code == 'ExpiredIteratorException'
+  || String(error.message).includes('Shard iterator has expired')
+
+// how many times one read replaces a refused shard iterator before it gives up
+const SHARD_ITERATOR_REPLACEMENTS = 3
+
 // Shard => AsyncGenerator<Record>
 DynamoStream.prototype.getRecords = async function* getRecords(
   Shard,
 ) {
-  const startingShardIterator = await this.retryGetShardIterator({
+  let lastSequenceNumber = null
+
+  const getShardIterator = (ShardIteratorType, SequenceNumber) => this.retryGetShardIterator({
     ShardId: Shard.ShardId,
     StreamArn: Shard.Stream.StreamArn,
-    ShardIteratorType: Shard.ShardIteratorType,
-
-    /*
-    ...(
-      Shard.ShardIteratorType == 'AFTER_SEQUENCE_NUMBER'
-      || Shard.ShardIteratorType == 'AT_SEQUENCE_NUMBER'
-    ) ? { SequenceNumber: Shard.SequenceNumber } : {},
-    */
-
+    ShardIteratorType,
+    ...SequenceNumber == null ? {} : { SequenceNumber },
   }).then(get('ShardIterator'))
 
-  let records = await this.retryGetRecords({
-    ShardIterator: startingShardIterator,
-    Limit: this.getRecordsLimit
-  }).catch(handleGetRecordsError)
+  // An iterator to replace one the stream refused. After an expiry, read on after the last record read; when nothing
+  // was read yet, a LATEST shard starts at LATEST again. Otherwise (trimmed, or the last record read is trimmed too)
+  // read from the oldest record the shard still holds: everything before it is gone, so nothing is read twice.
+  const replacementShardIterator = async error => {
+    if (isExpiredError(error) && lastSequenceNumber != null) {
+      try {
+        return await getShardIterator('AFTER_SEQUENCE_NUMBER', lastSequenceNumber)
+      } catch (iteratorError) {
+        if (!isTrimmedError(iteratorError)) {
+          throw iteratorError
+        }
+      }
+    }
+    if (isExpiredError(error) && lastSequenceNumber == null && Shard.ShardIteratorType == 'LATEST') {
+      return getShardIterator('LATEST')
+    }
+    return getShardIterator('TRIM_HORIZON')
+  }
 
-  if (records.Records.length > 0) {
-    yield* records.Records.map(assign({
+  // A refused iterator used to end the shard's reads (expired) or throw out of the stream, uncaught, which stopped
+  // the service (trimmed). It is replaced instead, a few times at most.
+  const getRecordsAt = async ShardIterator => {
+    for (let replacements = 0; ; replacements += 1) {
+      try {
+        return await this.retryGetRecords({
+          ShardIterator,
+          Limit: this.getRecordsLimit,
+        })
+      } catch (error) {
+        if (!(isTrimmedError(error) || isExpiredError(error)) || replacements == SHARD_ITERATOR_REPLACEMENTS) {
+          throw error
+        }
+        console.error(`DynamoStream: ${this.table} shard ${Shard.ShardId}: ${error.code || error.message}; reading on with a new shard iterator`)
+        ShardIterator = await replacementShardIterator(error)
+      }
+    }
+  }
+
+  const tagRecords = records => {
+    lastSequenceNumber = records[records.length - 1].dynamodb?.SequenceNumber ?? lastSequenceNumber
+    return records.map(assign({
       table: always(this.table),
       shardId: always(Shard.ShardId),
     }))
   }
+
+  let records = await getRecordsAt(await getShardIterator(Shard.ShardIteratorType))
+
+  if (records.Records.length > 0) {
+    yield* tagRecords(records.Records)
+  }
   await new Promise(resolve => setTimeout(resolve, this.getRecordsInterval))
 
   while (!this.closed && records.NextShardIterator != null) {
-    records = await this.retryGetRecords({
-      ShardIterator: records.NextShardIterator,
-      Limit: this.getRecordsLimit
-    }).catch(handleGetRecordsError)
+    records = await getRecordsAt(records.NextShardIterator)
     if (records.Records == null) {
       console.error(`DynamoStream: records.Records undefined: ${records}`)
       break
     } else if (records.Records.length > 0) {
-      yield* records.Records.map(assign({
-        table: always(this.table),
-        shardId: always(Shard.ShardId),
-      }))
+      yield* tagRecords(records.Records)
     }
     await new Promise(resolve => setTimeout(resolve, this.getRecordsInterval))
   }

@@ -5,6 +5,7 @@ const test = Test.all([
   require('./AutoScaling.test'),
   require('./AwsCredentials.test'),
   require('./ClaimyrCredentials.test'),
+  require('./ClaimyrDynamoStream.test'),
   require('./Dependency.test'),
   require('./Docker.test'),
   require('./DockerContainer.test'),
