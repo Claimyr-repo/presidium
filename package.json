@@ -1,6 +1,6 @@
 {
   "name": "@claimyr_hq/presidium",
-  "version": "0.29.16",
+  "version": "0.29.17",
   "description": "Claimyr's copy of presidium 0.29.13 (A library for creating web services), with session-token and default-credential-chain support for AWS clients, DynamoStream shard readers that replace a shard iterator DynamoDB Streams refuses, and an HttpServer that keeps idle connections past a load balancer's 60 s",
   "author": "Richard Tong",
   "license": "MIT",
@@ -36,9 +36,9 @@
     "minimatch": "9.0.9",
     "mongodb": "3.7.4",
     "node-fetch": "2.7.0",
-    "rubico": "2.15.1",
+    "rubico": "npm:@claimyr_hq/rubico@2.15.1",
     "tar-stream": "2.2.0",
-    "thunk-test": "1.5.0",
+    "thunk-test": "npm:@claimyr_hq/thunk-test@1.5.0",
     "ws": "8.22.0"
   },
   "scripts": {
