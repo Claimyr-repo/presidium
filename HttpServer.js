@@ -1,5 +1,13 @@
 const http = require('http')
 
+// Longer than every load balancer's 60 s idle limit, so the load balancer always closes an idle connection first.
+// With Node's default of 5 s, a process that stood still for 5 s or more woke with its idle-connection timers run out
+// and reset every idle connection a request had arrived on, and the load balancer answered those requests 502.
+const KEEP_ALIVE_TIMEOUT_MS = 65000
+
+// Above keepAliveTimeout, so that the header timer never ends a connection keepAliveTimeout would keep.
+const HEADERS_TIMEOUT_MS = 66000
+
 /**
  * @name HttpServer
  *
@@ -56,6 +64,8 @@ const http = require('http')
  */
 const HttpServer = function (httpHandler) {
   const server = http.createServer(httpHandler)
+  server.keepAliveTimeout = KEEP_ALIVE_TIMEOUT_MS
+  server.headersTimeout = HEADERS_TIMEOUT_MS
 
   server.ready = new Promise(resolve => {
     server._listeningResolve = resolve
