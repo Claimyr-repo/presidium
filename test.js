@@ -6,6 +6,7 @@ const test = Test.all([
   require('./AwsCredentials.test'),
   require('./ClaimyrCredentials.test'),
   require('./ClaimyrDynamoStream.test'),
+  require('./ClaimyrDynamoStreamShards.test'),
   require('./ClaimyrHttpServer.test'),
   require('./Dependency.test'),
   require('./Docker.test'),
